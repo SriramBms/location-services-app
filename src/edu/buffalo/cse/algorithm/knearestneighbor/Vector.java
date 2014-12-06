@@ -12,20 +12,32 @@ import edu.buffalo.cse.locationapp.entity.AccessPoint;
 public class Vector
 {
     private int m_ID;
-    private Hashtable m_AccessPointList = null;
+    private List<APRSSIPair> m_apSignalStrengthList = null;
 
-    //todo create private BMAccessPoint m_BMAccessPoint = null;
-    //todo create private BMSignalStrength m_BMSignalStrength = null;
-
-    public Vector(int locationID)
+    public Vector(int locationID, List<APRSSIPair> apSignalStrengthList)
     {
         m_ID = locationID;
-        //todo bring m_BMAccessPoint = BMFactory.BMAccessPoint();
-        //todo bring m_BMSignalStrength = BMFactory.BMSignalStrength();
-
-        LoadCurrentComponents();
+        m_apSignalStrengthList = apSignalStrengthList;
     }
+    
+    public int GetLocationID()
+    {
+        return m_ID;
+    }
+    
+    public List<APRSSIPair> GetSignalStrengthList()
+    {
+        return m_apSignalStrengthList;
+    }
+    
+    //public Vector(int locationID)
+    //{
+    //    m_ID = locationID;
 
+        //LoadCurrentComponents();
+    //}
+
+    /*
     public void LoadCurrentComponents()
     {
         //Retrieves all access points in the current project
@@ -43,10 +55,7 @@ public class Vector
         }
     }
 
-    public int GetLocationID()
-    {
-        return m_ID;
-    }
+    
 
     public Hashtable GetSignalDataList()
     {
@@ -69,4 +78,5 @@ public class Vector
         else
             return -100; //todo assumed -100 no signal
     }
+    */
 }

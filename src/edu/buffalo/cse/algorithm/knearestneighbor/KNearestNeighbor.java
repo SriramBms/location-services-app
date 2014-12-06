@@ -1,11 +1,16 @@
 package edu.buffalo.cse.algorithm.knearestneighbor;
 
 import java.util.ArrayList;
+import java.util.HashMap;
 import java.util.Hashtable;
 import java.util.List;
 
+import android.net.wifi.ScanResult;
+import android.util.SparseIntArray;
+
 import edu.buffalo.cse.locationapp.entity.AccessPoint;
 import edu.buffalo.cse.locationapp.entity.Location;
+import edu.buffalo.cse.algorithm.Utils;
 
 public class KNearestNeighbor
 {
@@ -13,15 +18,13 @@ public class KNearestNeighbor
 
     //Each training location is a vector
     private List<Vector> m_Vector = null;
+    private List<Location> m_Location = null;
+    private List<AccessPoint> m_AccessPoint = null;
 
-    //todo create private BMLocation m_BMLocation = null;
-    //todo create private BMAccessPoint m_BMAccessPoint = null;
     
-    public KNearestNeighbor()
+    public KNearestNeighbor(List<SignalSample> signalDatabase)
     {
-        //todo retrieve m_BMLocation = BMFactory.BMLocation();
-        //todo retrieve m_BMAccessPoint = BMFactory.BMAccessPoint();
-        PrepareVectors();
+        PrepareVectors(signalDatabase);
     }
 
     public int getK() {
@@ -32,35 +35,40 @@ public class KNearestNeighbor
     	this.k = k;
     }
 
-    private void PrepareVectors()
-    {
-        List<Location> tempLocationList = new ArrayList<Location>(); //todo retrieve m_BMLocation.GetLocationList();
-        if (tempLocationList != null && tempLocationList.size() > 0)
+    private void PrepareVectors(List<SignalSample> signalDatabase)
+    {         
+        m_Location = Utils.CreateLocationList(signalDatabase);
+        m_AccessPoint = Utils.CreateAccessPointList(signalDatabase);
+        
+        if (m_Location != null && m_Location.size() > 0)
         {
             m_Vector = new ArrayList<Vector>();
             Vector tempVector = null;
-            for (int i = 0; i < tempLocationList.size(); i++)
+            for (int i = 0; i < m_Location.size(); i++)
             {
-                tempVector = new Vector(tempLocationList.get(i).getID());
+                tempVector = new Vector(m_Location.get(i).getID(), Utils.CreateVectorComponent(m_Location.get(i), m_AccessPoint, signalDatabase));
                 m_Vector.add(tempVector);
             }
         }
     }
 
-    public Location PositionData(List<SignalSample> signalList)
-    {
-        List<SignalData> signalDataList = ConvertDataToSignalData(signalList);
-        if (signalDataList != null && signalDataList.size() > 0)
+
+    
+
+	public Location PositionData(List<ScanResult> signalList)
+    {	
+        if (signalList != null && signalList.size() > 0 && m_Vector != null && m_Vector.size() > 0)
         {
-            Hashtable signalTable = PrepareData(signalDataList);
 
-            List<VectorComponent> distances = CalculateDistances(signalTable);
+            //todo calculate and sort distances list here
+        	
+        	Location tempLocation = GetClosestLocation(signalList);
 
-            //todo sort distances list here
-
+        	/*
             Location[] tempLocationList = new Location[k];
             int x = 0, y = 0, z = 0;
 
+            
             for (int i = 0; i < k; i++)
             {
                 tempLocationList[i] = new Location(); //todo bring m_BMLocation.GetLocation(distances[distances.Count - k + i ].ID);
@@ -70,116 +78,92 @@ public class KNearestNeighbor
             {
                 x += tempLocationList[i].getXLocation();
                 y += tempLocationList[i].getYLocation();
-                z += tempLocationList[i].getMapID();
+                //z += tempLocationList[i].getMapID();
             }
 
             Location retVal = new Location();
             retVal.setXLocation(x / k);
             retVal.setYLocation(y / k);
-            retVal.setMapID(z / k);
+            //retVal.setMapID(z / k);
 
             return retVal;
+            */
+        	
+        	return tempLocation;
         }
 
         return null;
         
     }
+	
+	private Location GetClosestLocation(List<ScanResult> signalList) {
+		SparseIntArray distances = CalculateDistances(signalList);
+		
+		int tempKey = 0;
+		int minKey = 0;
+		int tempValue = Integer.MAX_VALUE;
+		int minValue = Integer.MAX_VALUE;
 
-    private List<VectorComponent> CalculateDistances(Hashtable signalTable)
+		
+		
+		for(int i = 0; i < distances.size(); i++) {
+			tempKey = distances.keyAt(i);
+			// get the object by the key.
+			tempValue = distances.get(tempKey);
+			   
+			if (tempValue < minValue) {
+				minValue = tempValue;
+				minKey = tempKey;
+			}
+		}
+		
+		for(int i = 0; i < m_Location.size(); i++) {
+			if (m_Location.get(i).getID() == minKey) {
+				return m_Location.get(i);
+			}
+		}
+		
+		return null;
+	}
+
+    private SparseIntArray CalculateDistances(List<ScanResult> signalList)
     {
-        List<VectorComponent> distances = new ArrayList<VectorComponent>();
-        VectorComponent distance = null;
-
-        for (int i = 0; i < m_Vector.size(); i++)
-        {
-            distance = new VectorComponent(m_Vector.get(i).GetLocationID(), CalculateDifference(m_Vector.get(i).GetSignalDataList(), signalTable));
-            distances.add(distance);
+    	//first integer is locationID and second is the distance
+        SparseIntArray distances = new SparseIntArray();
+        
+        for (int i = 0; i < m_Vector.size(); i++) {
+        	distances.put(m_Vector.get(i).GetLocationID(), calculateDifference(signalList, m_Vector.get(i).GetSignalStrengthList()));
         }
-
+        
         return distances;
     }
 
-    private double CalculateDifference(Hashtable recordedData, Hashtable signalTable)
-    {
-        double distance = 0;
+    private int calculateDifference(List<ScanResult> signalList, List<APRSSIPair> signalStrengthList) {
+    	double distance = 0;
+        for (int i = 0; i < signalStrengthList.size(); i++) {
+        	
+        	boolean isFound = false;
+        	
+        	for (int j = 0; j < signalList.size(); j++) {
+        		if (signalStrengthList.get(i).getAPMac().equals(signalList.get(j).BSSID)) {
+        			isFound = true;
+        			distance += Substract((double)signalStrengthList.get(i).getValue(), (double) signalList.get(j).level);
+        			break;
+        		}
+        	}
+        	
+        	if (!isFound) {
+        		//note : minimum signal strength value is assumed -100
+        		distance += Substract(signalStrengthList.get(i).getValue(), -100);
+        	}
+        }
 
-        // todo calculate distance
-        //foreach (item in recordedData)
-        //{
-        //    try
-        //    {
-        //        distance += Substract((double)item.Value, (double)signalTable[item.Key]);
-        //    }
-        //    catch
-        //    {
-        //        distance += Substract((double)item.Value, Global.NO_SIGNAL);
-        //    }
-        //}
-
-        return distance;
+        return (int) distance;
     }
 
     private double Substract(double value1, double value2)
     {
         return Math.abs(Math.abs(value1) - Math.abs(value2));
     }
-
-    private Hashtable<Integer, Integer> PrepareData(List<SignalData> signalDataList)
-    {
-        //Active project'teki bütün accesspointleri getirir
-        List<AccessPoint> tempAPList = new ArrayList<AccessPoint>(); //todo bring access point list m_BMAccessPoint.GetAllAccessPoints();
-        Hashtable<Integer, Integer> retVal = null;
-
-        if (tempAPList != null && tempAPList.size() > 0)
-        {
-            retVal = new Hashtable<Integer, Integer>();
-
-            for (int i = 0; i < tempAPList.size(); i++)
-            {
-                retVal.put(tempAPList.get(i).getID(), this.FindSignalStrength(tempAPList.get(i).getID(), signalDataList));
-            }
-        }
-
-        return retVal;
-    }
-
-    private int FindSignalStrength(int accesspointID, List<SignalData> signalDataList)
-    {
-       for (int i = 0; i < signalDataList.size(); i++)
-        {
-            if (signalDataList.get(i).getAccessPointID() == accesspointID)
-                return signalDataList.get(i).getRSSI();
-        }
-        return -100; //todo default no signal value
-    }
-
-    
-
-    private List<SignalData> ConvertDataToSignalData(List<SignalSample> signalList)
-    {
-        if (signalList != null && signalList.size() > 0)
-        {
-            List<SignalData> m_tempSignalList = new ArrayList<SignalData>();
-            SignalData m_tempSignal = null;
-            for (int i = 0; i < signalList.size(); i++)
-            {
-                //if (CheckIfExists(signalList.get(i).getMacAddress()))
-                //{
-                //    m_tempSignal = new SignalData();
-                //    m_tempSignal.RSSI = signalList[i].Rssi;
-                //    m_tempSignal.SignalQuality = (int)signalList[i].SignalQuality;
-                //    m_tempSignal.ProjectID = Global.m_activeProject;
-                //    m_tempSignal.LocationID = 0;
-                //    m_tempSignal.Channel = (int)signalList[i].Channel;
-                //    m_tempSignal.Time = signalList[i].ScanDateTime;
-                //    m_tempSignal.AccessPointID = m_BMAccessPoint.GetAccessPointData(signalList[i].MacAddress).ID;
-                //    m_tempSignalList.Add(m_tempSignal);
-                //}
-            }
-            return m_tempSignalList;
-        }
-        return null;
-    }
-
     
 }
